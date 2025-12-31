@@ -8,23 +8,26 @@ export interface ScoreCalculation {
 }
 
 const BASE_POINTS_PER_CORRECT = 100;
-const MAX_TIME_BONUS_MULTIPLIER = 2.0; // Up to 2x bonus
-const OPTIMAL_TIME_PER_CARD = 5; // 5 seconds = max bonus
-const MAX_TIME_PER_CARD = 30; // 30 seconds = no bonus
+const TIME_BONUS_PER_SECOND_SAVED = 10; // 10 points per second saved
+const TARGET_TIME_PER_CARD = 8; // Target: 8 seconds per card
+const MAX_PENALTY_PER_SECOND = 5; // -5 points per second over target
 
 /**
  * Calculate score based on correct answers and time taken
  *
- * Formula:
- * - Base Score = correctCount × 100
- * - Time Multiplier = 1.0 to 2.0 based on speed
- * - Final Score = Base Score × Time Multiplier
+ * NEW FORMULA - Every Second Counts:
+ * - Base Score = correctCount × 100 points
+ * - Time Bonus/Penalty based on TOTAL time vs target time:
+ *   - Target Time = totalCards × 8 seconds
+ *   - If faster: +10 points per second saved
+ *   - If slower: -5 points per second over (capped at base score)
+ * - Final Score = Base Score + Time Bonus (minimum 0)
  *
- * Speed tiers:
- * - ≤5s per card: 2.0x multiplier (max bonus)
- * - 5-15s per card: 1.5-2.0x multiplier (sliding scale)
- * - 15-30s per card: 1.0-1.5x multiplier (sliding scale)
- * - >30s per card: 1.0x multiplier (no bonus)
+ * Examples (for 20 cards):
+ * - 20 correct in 100s (target 160s): 2000 + (60s × 10) = 2,600 points
+ * - 20 correct in 160s (on target): 2000 + 0 = 2,000 points
+ * - 20 correct in 200s (40s over): 2000 - (40s × 5) = 1,800 points
+ * - 15 correct in 120s (vs 160s): 1500 + (40s × 10) = 1,900 points
  */
 export function calculateScore(
   correctCount: number,
@@ -42,26 +45,24 @@ export function calculateScore(
     };
   }
 
-  // Calculate average time per card
-  const averageTimePerCard = timeTakenSeconds / totalCards;
+  // Calculate target time and time difference
+  const targetTime = totalCards * TARGET_TIME_PER_CARD;
+  const timeDifference = targetTime - timeTakenSeconds; // Positive = faster, Negative = slower
 
-  // Calculate time multiplier
-  let timeMultiplier = 1.0;
-
-  if (averageTimePerCard <= OPTIMAL_TIME_PER_CARD) {
-    // Max bonus for very fast answers
-    timeMultiplier = MAX_TIME_BONUS_MULTIPLIER;
-  } else if (averageTimePerCard <= MAX_TIME_PER_CARD) {
-    // Sliding scale between optimal and max time
-    const timeRange = MAX_TIME_PER_CARD - OPTIMAL_TIME_PER_CARD;
-    const timeOver = averageTimePerCard - OPTIMAL_TIME_PER_CARD;
-    const bonusRange = MAX_TIME_BONUS_MULTIPLIER - 1.0;
-
-    timeMultiplier = MAX_TIME_BONUS_MULTIPLIER - (timeOver / timeRange) * bonusRange;
+  // Calculate time bonus/penalty
+  let timeBonus = 0;
+  if (timeDifference > 0) {
+    // Faster than target: bonus points
+    timeBonus = Math.round(timeDifference * TIME_BONUS_PER_SECOND_SAVED);
+  } else {
+    // Slower than target: penalty points
+    const penalty = Math.round(Math.abs(timeDifference) * MAX_PENALTY_PER_SECOND);
+    // Cap penalty at base points (can't go below 0)
+    timeBonus = -Math.min(penalty, basePoints);
   }
 
-  const timeBonus = Math.round(basePoints * (timeMultiplier - 1.0));
-  const totalScore = Math.round(basePoints * timeMultiplier);
+  const totalScore = Math.max(0, basePoints + timeBonus);
+  const averageTimePerCard = timeTakenSeconds / totalCards;
 
   return {
     basePoints,

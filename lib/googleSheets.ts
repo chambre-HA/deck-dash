@@ -116,10 +116,10 @@ function sheetRowToCard(row: SheetRow): Card {
     imageUrl: row.image_url,
     correctAnswer: row.correct_answer,
     wrongAnswers: [
-      row.wrong_answer_1,
-      row.wrong_answer_2,
-      row.wrong_answer_3
-    ],
+      row.wrong_answer_1 || '',
+      row.wrong_answer_2 || '',
+      row.wrong_answer_3 || ''
+    ].filter(answer => answer !== ''), // Filter out empty strings
     difficulty: row.difficulty
   };
 }

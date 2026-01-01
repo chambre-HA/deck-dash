@@ -232,12 +232,12 @@ export default function PlayPage() {
               transition={{ duration: 0.6, ease: "easeInOut" }}
               className="bg-white rounded-3xl shadow-2xl overflow-hidden"
             >
-              {/* Card Image - Square Aspect Ratio */}
-              <div className="relative aspect-square bg-gradient-to-br from-gray-100 to-gray-200">
+              {/* Card Image */}
+              <div className="relative h-96 bg-gradient-to-br from-gray-100 to-gray-200">
                 <img
                   src={currentCard.imageUrl}
                   alt="Card"
-                  className="w-full h-full object-scale-down"
+                  className="w-full h-full object-cover object-top"
                 />
                 <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full font-bold text-[#4A7FDB] shadow-lg">
                   Who is this?

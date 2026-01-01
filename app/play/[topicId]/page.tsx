@@ -237,7 +237,7 @@ export default function PlayPage() {
                 <img
                   src={currentCard.imageUrl}
                   alt="Card"
-                  className="w-full h-full object-contain"
+                  className="w-full h-full object-scale-down"
                 />
                 <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full font-bold text-[#4A7FDB] shadow-lg">
                   Who is this?

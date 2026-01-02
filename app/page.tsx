@@ -37,17 +37,16 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#5B8DEF] to-[#4A7FDB]">
       {/* Header Section */}
-      <div className="bg-gradient-to-b from-[#5B8DEF] to-[#4A7FDB] pb-20">
-        <div className="container mx-auto px-4 pt-12 pb-16">
+      <div className="bg-gradient-to-b from-[#5B8DEF] to-[#4A7FDB] pb-8">
+        <div className="container mx-auto px-4 pt-12 pb-8">
           {/* Header */}
           <div className="text-center mb-12 animate-slideDown">
             <div className="inline-block mb-6">
               <img
                 src="/deck_dash_logo.svg"
                 alt="Deck Dash"
-                className="h-24 md:h-32 w-auto mx-auto mb-3"
+                className="h-24 md:h-32 w-auto mx-auto"
               />
-              <div className="h-1.5 bg-[#FFD93D] rounded-full w-3/4 mx-auto"></div>
             </div>
             <p className="text-xl md:text-2xl text-white/95 mb-10 font-medium" style={{ fontFamily: "'DM Sans', sans-serif" }}>
               See the picture, pick the answer. Race against time!

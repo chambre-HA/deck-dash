@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Topic } from '@/lib/types';
 import { getAvailableTopics, clearCache } from '@/lib/googleSheets';
 import Link from 'next/link';
+import { VibeUncleHeader } from './components/VibeUncleHeader';
 
 export default function Home() {
   const [topics, setTopics] = useState<Topic[]>([]);
@@ -36,6 +37,9 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#5B8DEF] to-[#4A7FDB]">
+      {/* VibeUncle Header */}
+      <VibeUncleHeader />
+
       {/* Header Section */}
       <div className="bg-gradient-to-b from-[#5B8DEF] to-[#4A7FDB] pb-8">
         <div className="container mx-auto px-4 pt-12 pb-8">

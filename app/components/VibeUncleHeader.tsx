@@ -55,7 +55,6 @@ export function VibeUncleHeader() {
   const [views, setViews] = useState(0);
   const [hasLiked, setHasLiked] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [isRocking, setIsRocking] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -85,28 +84,15 @@ export function VibeUncleHeader() {
       }).catch(err => console.error('Error sending view:', err));
       sessionStorage.setItem(viewKey, 'true');
     }
+  }, []);
 
-    // Rock animation every 60 seconds
-    const rockInterval = setInterval(() => {
-      if (!isOpen) {
-        setIsRocking(true);
-        setTimeout(() => setIsRocking(false), 600);
-      }
-    }, 60000);
-
-    // First rock after 5 seconds
-    const firstRock = setTimeout(() => {
-      if (!isOpen) {
-        setIsRocking(true);
-        setTimeout(() => setIsRocking(false), 600);
-      }
-    }, 5000);
-
+  // Expose toggle function globally for the logo to call
+  useEffect(() => {
+    (window as unknown as { toggleVibeUncleBar?: () => void }).toggleVibeUncleBar = () => setIsOpen(prev => !prev);
     return () => {
-      clearInterval(rockInterval);
-      clearTimeout(firstRock);
+      delete (window as unknown as { toggleVibeUncleBar?: () => void }).toggleVibeUncleBar;
     };
-  }, [isOpen]);
+  }, []);
 
   const handleLike = () => {
     if (hasLiked) return;
@@ -132,25 +118,13 @@ export function VibeUncleHeader() {
 
   return (
     <>
-      <style jsx>{`
-        @keyframes rock {
-          0%, 100% { transform: rotate(0deg); }
-          20% { transform: rotate(-15deg); }
-          40% { transform: rotate(12deg); }
-          60% { transform: rotate(-8deg); }
-          80% { transform: rotate(5deg); }
-        }
-        .rocking {
-          animation: rock 0.6s ease-in-out;
-        }
-      `}</style>
 
       {/* Top Bar */}
       <div
         className={`fixed top-0 left-0 right-0 z-[200] overflow-hidden shadow-lg transition-all duration-300 ease-out ${
           isOpen ? 'max-h-20 opacity-100' : 'max-h-0 opacity-0'
         }`}
-        style={{ background: 'linear-gradient(135deg, #4A7FDB 0%, #3D6AC4 100%)' }}
+        style={{ background: 'linear-gradient(135deg, #FF6B6B 0%, #FF5252 100%)' }}
       >
         <div className="flex items-center justify-between px-4 py-3">
           <a
@@ -198,15 +172,6 @@ export function VibeUncleHeader() {
 
       {/* Spacer when bar is open */}
       <div className={`transition-all duration-300 ease-out ${isOpen ? 'h-[52px]' : 'h-0'}`} />
-
-      {/* Clickable Logo Trigger - positioned absolutely in header area */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="fixed top-4 left-4 z-[100] p-2 rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-sm transition-all"
-        title="Click for more info"
-      >
-        <DeckDashLogo size={28} className={isRocking ? 'rocking' : ''} />
-      </button>
     </>
   );
 }

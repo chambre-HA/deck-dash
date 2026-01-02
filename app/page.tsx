@@ -49,7 +49,9 @@ export default function Home() {
               <img
                 src="/deck_dash_logo.svg"
                 alt="Deck Dash"
-                className="h-24 md:h-32 w-auto mx-auto"
+                className="h-24 md:h-32 w-auto mx-auto cursor-pointer hover:scale-105 transition-transform"
+                onClick={() => (window as unknown as { toggleVibeUncleBar?: () => void }).toggleVibeUncleBar?.()}
+                title="Click for more info"
               />
             </div>
             <p className="text-xl md:text-2xl text-white/95 mb-10 font-medium" style={{ fontFamily: "'DM Sans', sans-serif" }}>

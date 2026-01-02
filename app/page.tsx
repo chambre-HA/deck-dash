@@ -42,10 +42,11 @@ export default function Home() {
           {/* Header */}
           <div className="text-center mb-12 animate-slideDown">
             <div className="inline-block mb-6">
-              <h1 className="text-6xl md:text-7xl font-black text-white mb-3 tracking-tight flex items-center justify-center gap-3" style={{ fontFamily: "'Outfit', sans-serif" }}>
-                <span className="text-[#FFD93D] text-7xl md:text-8xl">⚡</span>
-                <span>DECK <span className="text-[#FFD93D]">DASH</span></span>
-              </h1>
+              <img
+                src="/deck_dash_logo.svg"
+                alt="Deck Dash"
+                className="h-24 md:h-32 w-auto mx-auto mb-3"
+              />
               <div className="h-1.5 bg-[#FFD93D] rounded-full w-3/4 mx-auto"></div>
             </div>
             <p className="text-xl md:text-2xl text-white/95 mb-10 font-medium" style={{ fontFamily: "'DM Sans', sans-serif" }}>

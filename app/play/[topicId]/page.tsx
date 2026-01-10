@@ -216,20 +216,16 @@ export default function PlayPage() {
       </div>
 
       {/* Card Area */}
-      <div className="flex-1 flex items-center justify-center p-4">
+      <div className="flex-1 flex items-center justify-center p-4" style={{ perspective: '1200px' }}>
         <div className="w-full max-w-2xl">
           <AnimatePresence mode="wait">
             <motion.div
               key={currentIndex}
-              initial={{ scale: 0.9, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{
-                x: selectedAnswer === currentCard.correctAnswer ? 400 : -400,
-                opacity: 0,
-                rotate: selectedAnswer === currentCard.correctAnswer ? 20 : -20,
-                scale: 0.8
-              }}
+              initial={{ rotateY: -90, opacity: 0 }}
+              animate={{ rotateY: 0, opacity: 1 }}
+              exit={{ rotateY: 90, opacity: 0 }}
               transition={{ duration: 0.6, ease: "easeInOut" }}
+              style={{ transformStyle: 'preserve-3d' }}
               className="bg-white rounded-3xl shadow-2xl overflow-hidden"
             >
               {/* Card Image */}
@@ -270,9 +266,6 @@ export default function PlayPage() {
                         whileTap={!showFeedback ? { scale: 0.98 } : {}}
                       >
                         {choice}
-                        {showFeedback && isSelected && (
-                          <span className="ml-2">{isCorrect ? '✓' : '✗'}</span>
-                        )}
                       </motion.button>
                     );
                   })}

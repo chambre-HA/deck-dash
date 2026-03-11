@@ -195,7 +195,7 @@ export default function ResultsPage() {
         >
           {/* Deck Preview Image */}
           {topic?.previewImage && (
-            <div className="h-56 relative overflow-hidden">
+            <div className="h-96 relative overflow-hidden">
               <img
                 src={topic.previewImage}
                 alt={topic.name}

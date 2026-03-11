@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSpring, animated } from '@react-spring/web';
 import { useDrag } from '@use-gesture/react';
-import { CheckCircle2, XCircle } from 'lucide-react';
+import { CheckCircle2, XCircle, Volume2, VolumeX } from 'lucide-react';
 import { Card } from '@/lib/types';
 import { getCardsForTopic } from '@/lib/googleSheets';
 
@@ -36,6 +36,66 @@ export default function PlayPage() {
   const [displayIndex, setDisplayIndex] = useState(0);
 
   const isBusy = useRef(false); // prevent double-clicks during transition
+
+  // ── Sound ──────────────────────────────────────────────────────────
+  const [isMuted, setIsMuted] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('deckdash-muted') === 'true';
+    }
+    return false;
+  });
+  const isMutedRef = useRef(isMuted);
+  useEffect(() => { isMutedRef.current = isMuted; }, [isMuted]);
+
+  const clockAudio  = useRef<HTMLAudioElement | null>(null);
+  const correctAudio = useRef<HTMLAudioElement | null>(null);
+  const wrongAudio   = useRef<HTMLAudioElement | null>(null);
+
+  // Initialise audio elements once on mount
+  useEffect(() => {
+    clockAudio.current   = new Audio('/clock.mp3');
+    correctAudio.current = new Audio('/correct.mp3');
+    wrongAudio.current   = new Audio('/wrong.mp3');
+    clockAudio.current.loop   = true;
+    clockAudio.current.volume = 0.4;
+    return () => {
+      clockAudio.current?.pause();
+    };
+  }, []);
+
+  const playCorrect = useCallback(() => {
+    if (isMutedRef.current || !correctAudio.current) return;
+    correctAudio.current.currentTime = 0;
+    correctAudio.current.play().catch(() => {});
+  }, []);
+
+  const playWrong = useCallback(() => {
+    if (isMutedRef.current || !wrongAudio.current) return;
+    wrongAudio.current.currentTime = 0;
+    wrongAudio.current.play().catch(() => {});
+  }, []);
+
+  // Start/stop clock when cards are loaded and game is in progress
+  useEffect(() => {
+    if (!clockAudio.current) return;
+    if (cards.length > 0 && currentIndex < cards.length) {
+      if (!isMuted) {
+        clockAudio.current.play().catch(() => {});
+      } else {
+        clockAudio.current.pause();
+      }
+    } else {
+      clockAudio.current.pause();
+    }
+  }, [cards, currentIndex, isMuted]);
+
+  const toggleMute = useCallback(() => {
+    setIsMuted(prev => {
+      const next = !prev;
+      localStorage.setItem('deckdash-muted', String(next));
+      return next;
+    });
+  }, []);
 
   // ── Springs ────────────────────────────────────────────────────────
   const [drag, dragApi] = useSpring(() => ({
@@ -140,9 +200,11 @@ export default function PlayPage() {
     if (!isCorrect) {
       setIsShaking(true);
       setTimeout(() => setIsShaking(false), 600);
+      playWrong();
     } else {
       dragApi.start({ scale: 1.04, config: { tension: 600, friction: 10 } });
       setTimeout(() => dragApi.start({ scale: 1, config: { tension: 300, friction: 20 } }), 200);
+      playCorrect();
     }
 
     // Wait for feedback to show, then flip
@@ -152,7 +214,8 @@ export default function PlayPage() {
       const nextIdx     = currentIndex + 1;
 
       if (nextIdx >= cards.length) {
-        // Last card — navigate to results
+        // Last card — stop clock and navigate to results
+        clockAudio.current?.pause();
         const timeTaken = Math.floor((Date.now() - startTime) / 1000);
         const result = {
           correctCount: nextCorrect.length,
@@ -255,6 +318,15 @@ export default function PlayPage() {
             <div className="bg-white/20 backdrop-blur-sm px-3 py-1.5 rounded-full text-white font-bold text-sm border border-white/30 flex-shrink-0">
               {Math.floor(elapsedTime / 60)}:{(elapsedTime % 60).toString().padStart(2, '0')}
             </div>
+
+            {/* Mute toggle */}
+            <button
+              onClick={toggleMute}
+              className="flex-shrink-0 bg-white/20 hover:bg-white/30 backdrop-blur-sm p-2 rounded-full border border-white/30 text-white transition-all duration-200 hover:scale-110 active:scale-95"
+              title={isMuted ? 'Unmute' : 'Mute'}
+            >
+              {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+            </button>
           </div>
         </div>
       </div>

@@ -28,12 +28,14 @@ export default function ResultsPage() {
   const [showWrongStack, setShowWrongStack] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
   const resultsCardRef = useRef<HTMLDivElement>(null);
+  const fanfareRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
     // Load result from sessionStorage
     const stored = sessionStorage.getItem('gameResult');
     if (stored) {
       setResult(JSON.parse(stored));
+      fanfareRef.current?.play().catch(() => {});
     } else {
       // No result found, redirect to home
       router.push('/');
@@ -184,6 +186,7 @@ export default function ResultsPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#5B8DEF] to-[#4A7FDB] flex items-center justify-center py-12 px-4">
+      <audio ref={fanfareRef} src="/fanfare.mp3" preload="auto" />
       <div className="max-w-2xl w-full">
         {/* Main Results Card */}
         <motion.div

@@ -20,7 +20,7 @@ interface GameResult {
 export default function ResultsPage() {
   const params = useParams();
   const router = useRouter();
-  const topicId = params.topicId as string;
+  const topicId = decodeURIComponent(params.topicId as string);
 
   const [result, setResult] = useState<GameResult | null>(null);
   const [topic, setTopic] = useState<Topic | null>(null);

@@ -10,7 +10,7 @@ import Link from 'next/link';
 export default function ShareableTopicPage() {
   const params = useParams();
   const router = useRouter();
-  const topicId = params.topicId as string;
+  const topicId = decodeURIComponent(params.topicId as string);
 
   const [topic, setTopic] = useState<Topic | null>(null);
   const [loading, setLoading] = useState(true);

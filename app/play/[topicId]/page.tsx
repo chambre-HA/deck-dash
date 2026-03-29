@@ -14,7 +14,7 @@ const FLIP_HALF_MS = 320;
 export default function PlayPage() {
   const params  = useParams();
   const router  = useRouter();
-  const topicId = params.topicId as string;
+  const topicId = decodeURIComponent(params.topicId as string);
 
   const [cards, setCards]               = useState<Card[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);

@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { clearCache } from '@/lib/googleSheets';
 
 export default function RequestPage() {
   const [topicId, setTopicId] = useState('');
@@ -11,6 +13,12 @@ export default function RequestPage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
+  const router = useRouter();
+
+  function handleRefreshAndGoHome() {
+    clearCache();
+    router.push('/');
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,7 +95,7 @@ export default function RequestPage() {
                 onChange={(e) => setTopicName(e.target.value)}
                 placeholder="e.g., Characters of One Piece"
                 required
-                className="w-full px-5 py-4 bg-gray-50 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#4A7FDB] focus:border-transparent placeholder-gray-400 text-lg font-medium transition-all"
+                className="w-full px-5 py-4 bg-gray-50 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#4A7FDB] focus:border-transparent placeholder-gray-400 text-gray-900 text-lg font-medium transition-all"
               />
               <p className="text-sm text-gray-500 mt-2">
                 This is the display name users will see
@@ -106,7 +114,7 @@ export default function RequestPage() {
                 onChange={(e) => setTopicId(e.target.value)}
                 placeholder="e.g., onepiece_characters"
                 required
-                className="w-full px-5 py-4 bg-gray-50 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#4A7FDB] focus:border-transparent placeholder-gray-400 text-lg font-medium font-mono transition-all"
+                className="w-full px-5 py-4 bg-gray-50 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#4A7FDB] focus:border-transparent placeholder-gray-400 text-gray-900 text-lg font-medium font-mono transition-all"
               />
               <p className="text-sm text-gray-500 mt-2">
                 <strong>Shareable URL:</strong> deck-dash.vibeuncle.com/<span className="text-[#4A7FDB] font-semibold">{topicId || topicName.toLowerCase().replace(/\s+/g, '_') || 'topic_id'}</span>
@@ -154,9 +162,18 @@ export default function RequestPage() {
                 className="bg-[#7BDCB5] rounded-2xl p-5 border-2 border-[#6BCCA5]"
               >
                 <p className="text-white font-bold text-lg">✓ Request submitted successfully!</p>
-                <p className="text-white/90 text-sm mt-1">
-                  Your deck will be ready in 2-5 minutes. Refresh the home page to see it.
+                <p className="text-white/90 text-sm mt-1 mb-4">
+                  Your deck will be ready in 2-5 minutes.
                 </p>
+                <button
+                  onClick={handleRefreshAndGoHome}
+                  className="group bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white px-6 py-3 rounded-full text-base font-semibold transition-all hover:scale-105 border-2 border-white/30 hover:border-white/50 flex items-center gap-2"
+                >
+                  <svg className="w-5 h-5 group-hover:rotate-180 transition-transform duration-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Refresh Decks
+                </button>
               </motion.div>
             )}
 

@@ -293,7 +293,7 @@ export default function PlayPage() {
   });
 
   return (
-    <div className="min-h-screen bg-[#4A7FDB] flex flex-col">
+    <div className="h-dvh bg-[#4A7FDB] flex flex-col overflow-hidden">
       {/* Header */}
       <div className="bg-white/10 backdrop-blur-md border-b border-white/20 p-4 z-10 relative">
         <div className="container mx-auto max-w-4xl">
@@ -332,18 +332,19 @@ export default function PlayPage() {
       </div>
 
       {/* Card Area */}
-      <div className="flex-1 flex items-center justify-center p-4" style={{ perspective: '1400px' }}>
-        <div className="w-full max-w-2xl">
+      <div className="flex-1 flex items-center justify-center p-4 min-h-0" style={{ perspective: '1400px' }}>
+        <div className="w-full max-w-2xl h-full flex flex-col">
           {/* Outer drag wrapper */}
           <animated.div
             {...bind()}
             style={{ x: drag.x, y: drag.y, scale: drag.scale, rotate: drag.rot, touchAction: 'none' }}
+            className="h-full flex flex-col"
           >
             {/* Inner flip wrapper */}
             <animated.div
               style={{ rotateY: flip.rotateY }}
               className={[
-                'bg-white rounded-3xl shadow-2xl overflow-hidden will-change-transform transition-shadow duration-300',
+                'bg-white rounded-3xl shadow-2xl overflow-hidden will-change-transform transition-shadow duration-300 flex flex-col h-full',
                 !isFlipping ? 'cursor-grab active:cursor-grabbing' : '',
                 isShaking ? 'shake' : '',
                 // Colored ring based on feedback
@@ -355,7 +356,7 @@ export default function PlayPage() {
               ].filter(Boolean).join(' ')}
             >
               {/* Card Image */}
-              <div className="relative h-96 bg-gradient-to-br from-gray-100 to-gray-200 select-none">
+              <div className="relative flex-1 min-h-0 bg-gradient-to-br from-gray-100 to-gray-200 select-none">
                 <img
                   src={displayCard.imageUrl}
                   alt="Card"
@@ -391,8 +392,8 @@ export default function PlayPage() {
               </div>
 
               {/* Answer Choices */}
-              <div className="p-6">
-                <div className="grid grid-cols-1 gap-3">
+              <div className="p-4 flex-shrink-0">
+                <div className="grid grid-cols-1 gap-2">
                   {visibleChoices.map((choice, idx) => {
                     const isCorrect  = choice === displayCard.correctAnswer;
                     const isSelected = choice === selectedAnswer;
@@ -407,7 +408,7 @@ export default function PlayPage() {
                         key={idx}
                         onClick={() => handleAnswerSelect(choice)}
                         disabled={isBusy.current || isFlipping || displayIndex !== currentIndex}
-                        className={`${cls} px-6 py-5 rounded-2xl font-bold text-xl transition-all duration-300 hover:scale-[1.02] active:scale-95 disabled:cursor-not-allowed w-full`}
+                        className={`${cls} px-4 py-3 rounded-2xl font-bold text-lg transition-all duration-300 hover:scale-[1.02] active:scale-95 disabled:cursor-not-allowed w-full`}
                         style={{ fontFamily: "'DM Sans', sans-serif" }}
                       >
                         {choice}

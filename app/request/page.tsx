@@ -1,61 +1,100 @@
 'use client';
 
-import { useState } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+import { useAsyncJob } from '@/lib/async-job';
+import { ProcessingScreen } from '@/app/components/ProcessingScreen';
 import { clearCache } from '@/lib/googleSheets';
+
+interface DeckResult {
+  success: boolean;
+  topic_id: string;
+  topic_name: string;
+  cardCount: number;
+}
+
+const STATUS_MESSAGES = [
+  'Analyzing your topic with AI...',
+  'Generating quiz questions...',
+  'Searching for high-quality images...',
+  'Matching images to each card...',
+  'Building your flashcard deck...',
+  'Adding cards to the collection...',
+  'Polishing the final details...',
+  'Almost there, hang tight...',
+];
 
 export default function RequestPage() {
   const [topicId, setTopicId] = useState('');
   const [topicName, setTopicName] = useState('');
   const [count, setCount] = useState(30);
-  const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [error, setError] = useState('');
   const router = useRouter();
 
-  function handleRefreshAndGoHome() {
-    clearCache();
-    router.push('/');
-  }
+  const job = useAsyncJob<DeckResult>({
+    submitUrl: '/api/request-deck',
+    statusUrl: '/api/request-deck/status',
+    estimatedSeconds: 180,
+    onComplete: (data) => {
+      // Clear Google Sheets cache so the new deck appears on home page
+      clearCache();
+      // Redirect to the new deck after a brief success display
+      setTimeout(() => {
+        router.push(`/${data.topic_id}`);
+      }, 2000);
+    },
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    setError('');
-    setSuccess(false);
 
-    // Use topicId if provided, otherwise generate from topicName
     const finalTopicId = topicId || topicName.toLowerCase().replace(/\s+/g, '_');
 
-    try {
-      const response = await fetch('/api/request-deck', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          topic_id: finalTopicId,
-          topic_name: topicName,
-          count: count,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to submit request');
-      }
-
-      setSuccess(true);
-      setTopicId('');
-      setTopicName('');
-      setCount(30);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong');
-    } finally {
-      setLoading(false);
-    }
+    await job.submit({
+      topic_id: finalTopicId,
+      topic_name: topicName,
+      count: count,
+    });
   };
+
+  // Show ProcessingScreen when job is active
+  if (job.status !== 'idle') {
+    return (
+      <div className="min-h-screen bg-[#4A7FDB] p-8">
+        <div className="max-w-3xl mx-auto">
+          <button
+            onClick={() => {
+              job.reset();
+            }}
+            className="inline-flex items-center gap-2 text-white/90 hover:text-white transition-colors mb-8 text-lg font-semibold"
+          >
+            ← Cancel
+          </button>
+
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white/95 backdrop-blur-lg rounded-3xl p-10 shadow-2xl border-2 border-white/50"
+          >
+            <ProcessingScreen
+              status={job.status}
+              elapsed={job.elapsed}
+              estimatedSeconds={job.estimatedSeconds}
+              title="Creating Your Deck"
+              subtitle={topicName}
+              statusMessages={STATUS_MESSAGES}
+              error={job.error}
+              onRetry={job.reset}
+              onBack={() => job.reset()}
+              successMessage="Your deck is ready!"
+              accentColor="#4A7FDB"
+            />
+          </motion.div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#4A7FDB] p-8">
@@ -154,76 +193,15 @@ export default function RequestPage() {
               </div>
             </div>
 
-            {/* Success Message */}
-            {success && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="bg-[#7BDCB5] rounded-2xl p-5 border-2 border-[#6BCCA5]"
-              >
-                <p className="text-white font-bold text-lg">✓ Request submitted successfully!</p>
-                <p className="text-white/90 text-sm mt-1 mb-4">
-                  Your deck will be ready in 2-5 minutes.
-                </p>
-                <button
-                  onClick={handleRefreshAndGoHome}
-                  className="group bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white px-6 py-3 rounded-full text-base font-semibold transition-all hover:scale-105 border-2 border-white/30 hover:border-white/50 flex items-center gap-2"
-                >
-                  <svg className="w-5 h-5 group-hover:rotate-180 transition-transform duration-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                  Refresh Decks
-                </button>
-              </motion.div>
-            )}
-
-            {/* Error Message */}
-            {error && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="bg-[#FF6B6B] rounded-2xl p-5 border-2 border-[#FF5252]"
-              >
-                <p className="text-white font-bold">✗ Error: {error}</p>
-              </motion.div>
-            )}
-
             {/* Submit Button */}
             <motion.button
               type="submit"
-              disabled={loading}
-              whileHover={{ scale: loading ? 1 : 1.02 }}
-              whileTap={{ scale: loading ? 1 : 0.98 }}
-              className={`w-full py-5 rounded-2xl font-black text-xl transition-all shadow-lg ${
-                loading
-                  ? 'bg-gray-400 cursor-not-allowed'
-                  : 'bg-[#4A7FDB] hover:bg-[#3D6AC4] text-white shadow-xl'
-              }`}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="w-full py-5 rounded-2xl font-black text-xl transition-all shadow-lg bg-[#4A7FDB] hover:bg-[#3D6AC4] text-white shadow-xl"
               style={{ fontFamily: "'Outfit', sans-serif" }}
             >
-              {loading ? (
-                <span className="flex items-center justify-center gap-3">
-                  <svg className="animate-spin h-6 w-6" viewBox="0 0 24 24">
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                      fill="none"
-                    />
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    />
-                  </svg>
-                  Processing...
-                </span>
-              ) : (
-                '🚀 Submit Request'
-              )}
+              🚀 Submit Request
             </motion.button>
           </form>
 
@@ -232,7 +210,7 @@ export default function RequestPage() {
             <p className="text-sm text-gray-700" style={{ fontFamily: "'DM Sans', sans-serif" }}>
               <strong className="text-[#4A7FDB]">How it works:</strong> Your request is sent to our AI automation system.
               Claude will generate the quiz cards and fetch high-quality images from Wikipedia.
-              The deck will be added to Google Sheets and appear on the home page automatically.
+              You&apos;ll see real-time progress and be automatically redirected when your deck is ready.
             </p>
           </div>
         </motion.div>

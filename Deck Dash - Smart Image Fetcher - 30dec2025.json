@@ -1,0 +1,790 @@
+{
+  "name": "Deck Dash - Smart Image Fetcher v2",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "generate-deck",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "c20c771f-87c4-4c59-a301-0d8ba1a5e233",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -3360,
+        64
+      ],
+      "webhookId": "8d894f36-f451-47ff-abcc-198f755ccb88"
+    },
+    {
+      "parameters": {
+        "jsCode": "const { topic_id, topic_name, count } = $input.item.json.body;\n\nconst prompt = `Analyze this topic and generate quiz cards: \"${topic_name}\"\n\nFirst, determine if this is anime/manga related (Japanese animation, manga series, light novels, anime characters).\n\nThen generate ${count || 30} quiz cards.\n\nFor ANIME/MANGA topics:\n- Provide the MyAnimeList search query for each character\n- Use the character's full name as it appears on MyAnimeList\n\nFor NON-ANIME topics (K-pop, movies, TV shows, celebrities, sports, etc.):\n- Provide the Wikipedia slug\n- Replace spaces with underscores\n- Add disambiguation in parentheses if needed\n\nReturn ONLY valid JSON:\n{\n  \"is_anime\": true/false,\n  \"cards\": [\n    {\n      \"correct_answer\": \"Character/Person Name\",\n      \"search_query\": \"search term for MAL or Wikipedia slug\"\n    }\n  ]\n}\n\nExamples:\n- \"Characters of Jujutsu Kaisen\" → is_anime: true, search_query: \"Yuji Itadori\"\n- \"Members of BTS\" → is_anime: false, search_query: \"Kim_Namjoon\"\n- \"Characters of Breaking Bad\" → is_anime: false, search_query: \"Walter_White_(Breaking_Bad)\"`;\n\nreturn { prompt, topic_id, topic_name, count: count || 30 };"
+      },
+      "id": "33e47eae-4c05-4a84-a322-25fb0b6bb7dc",
+      "name": "Build Claude Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3136,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "claude-sonnet-4-20250514"
+            },
+            {
+              "name": "max_tokens",
+              "value": 4096
+            },
+            {
+              "name": "messages",
+              "value": "={{[{role: 'user', content: $json.prompt}]}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b6e09190-dc30-42bb-a726-57c727f66f46",
+      "name": "Claude API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        -2912,
+        64
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "6rTxbikt5jgD2Obm",
+          "name": "Anthropic API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const claudeResponse = $input.first().json.content[0].text;\nconst { topic_id, topic_name } = $node['Build Claude Prompt'].json;\n\n// Extract JSON from Claude response\nconst jsonMatch = claudeResponse.match(/\\{[\\s\\S]*\\}/);\nif (!jsonMatch) {\n  throw new Error('No JSON found in Claude response');\n}\n\nconst parsed = JSON.parse(jsonMatch[0]);\nconst isAnime = parsed.is_anime === true;\n\n// Output each card as separate item\nreturn parsed.cards.map((card, index) => ({\n  json: {\n    topic_id,\n    topic_name,\n    card_id: `${topic_id}_${String(index + 1).padStart(3, '0')}`,\n    correct_answer: card.correct_answer,\n    search_query: card.search_query,\n    is_anime: isAnime\n  }\n}));"
+      },
+      "id": "1ddda196-e24f-42b7-b0d1-b24c75ed60d9",
+      "name": "Parse Claude Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2704,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "is-anime-check",
+              "leftValue": "={{ $json.is_anime }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -2480,
+        64
+      ],
+      "id": "d7c52497-966e-432c-a0bf-c7d91db4bc58",
+      "name": "Is Anime?"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "8121f200-1235-4bef-a83f-dac48b354ad7",
+      "name": "Loop Over Items",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -2224,
+        -176
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "76448e57-5d50-48ee-8e01-86e2c54503bd",
+      "name": "Wait 1 Second",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -2032,
+        -96
+      ],
+      "webhookId": "jikan-rate-limit"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.jikan.moe/v4/characters?q={{encodeURIComponent($json.search_query)}}&limit=1",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "DeckDash/1.0 (Educational App)"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "c6f861d9-27c4-486a-926e-122b82f55ebb",
+      "name": "Jikan API Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        -1824,
+        -96
+      ],
+      "retryOnFail": true,
+      "waitBetweenTries": 3000,
+      "maxTries": 3,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const jikanResponse = $input.item.json;\n\n// Get the current item data that was passed through the loop\nconst currentItem = $('Loop Over Items').item.json;\n\nlet imageUrl = null;\n\n// Extract image from Jikan response\nif (jikanResponse && \n    jikanResponse.data && \n    Array.isArray(jikanResponse.data) && \n    jikanResponse.data.length > 0) {\n  \n  const character = jikanResponse.data[0];\n  \n  // Jikan provides images in this structure\n  if (character.images) {\n    // Prefer JPG, then WebP\n    if (character.images.jpg && character.images.jpg.image_url) {\n      imageUrl = character.images.jpg.image_url;\n    } else if (character.images.webp && character.images.webp.image_url) {\n      imageUrl = character.images.webp.image_url;\n    }\n  }\n}\n\nreturn {\n  topic_id: currentItem.topic_id,\n  topic_name: currentItem.topic_name,\n  card_id: currentItem.card_id,\n  correct_answer: currentItem.correct_answer,\n  imageUrl: imageUrl,\n  source: 'jikan'\n};"
+      },
+      "id": "459f0381-5b17-46df-b945-e1ed7dd6714d",
+      "name": "Extract Jikan Image",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1600,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://en.wikipedia.org/w/api.php?action=query&titles={{encodeURIComponent($json.search_query)}}&prop=pageimages&piprop=original&pilicense=any&format=json&formatversion=2",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "DeckDash/1.0 (Educational App)"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "9682743e-1953-45e9-bcb4-8ed753fb84e9",
+      "name": "Wikipedia PageImages",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        -2256,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const wikiResponse = $input.item.json;\nconst allCards = $('Parse Claude Response').all();\nconst cardData = allCards[$itemIndex].json;\n\nlet imageUrl = null;\n\n// Check if Wikipedia API returned valid data with pageimages\nif (wikiResponse && \n    wikiResponse.query && \n    wikiResponse.query.pages &&\n    Array.isArray(wikiResponse.query.pages) &&\n    wikiResponse.query.pages.length > 0) {\n  \n  const page = wikiResponse.query.pages[0];\n  \n  // pageimages API returns the main infobox image directly\n  if (page && !page.missing && page.original && page.original.source) {\n    imageUrl = page.original.source;\n  }\n}\n\nreturn {\n  topic_id: cardData.topic_id,\n  topic_name: cardData.topic_name,\n  card_id: cardData.card_id,\n  correct_answer: cardData.correct_answer,\n  search_query: cardData.search_query,\n  imageUrl: imageUrl,\n  hasImage: imageUrl !== null,\n  source: 'wikipedia'\n};"
+      },
+      "id": "6ca80d26-3ab9-41d5-a8fe-ffb4f2534727",
+      "name": "Extract Wiki Image",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2032,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-image-check",
+              "leftValue": "={{ $json.hasImage }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1824,
+        224
+      ],
+      "id": "59b8e823-79dc-4d80-b458-779fc8148638",
+      "name": "Need Fallback?"
+    },
+    {
+      "parameters": {
+        "url": "=https://en.wikipedia.org/w/api.php?action=query&titles={{encodeURIComponent($json.search_query)}}&prop=images&format=json&formatversion=2",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "DeckDash/1.0 (Educational App)"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c0e581f5-91c4-4007-91b0-6028322fc8cc",
+      "name": "Get Images List",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        -1600,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const wikiResponse = $input.item.json;\nconst fallbackItems = $('Need Fallback?').all();\nconst prevData = fallbackItems[$itemIndex].json;\n\nlet imageFilename = null;\n\nif (wikiResponse && \n    wikiResponse.query && \n    wikiResponse.query.pages &&\n    Array.isArray(wikiResponse.query.pages) &&\n    wikiResponse.query.pages.length > 0) {\n  \n  const page = wikiResponse.query.pages[0];\n  \n  if (page && !page.missing && page.images && Array.isArray(page.images) && page.images.length > 0) {\n    // Filter out common Wikipedia UI images\n    const excludePatterns = [\n      'ambox', 'icon', 'logo', 'commons-logo', 'wikidata', 'wikiquote',\n      'edit-', 'lock-', 'question', 'info', 'disambig', 'folder',\n      'crystal', 'nuvola', 'gnome', 'tango', 'farm-fresh', 'ooui',\n      'red_pencil', 'increase', 'decrease', 'steady', 'symbol_'\n    ];\n    \n    const validExtensions = ['.jpg', '.jpeg', '.png', '.webp'];\n    \n    // Find first valid image\n    const bestImage = page.images.find(img => {\n      if (!img.title) return false;\n      const titleLower = img.title.toLowerCase();\n      if (excludePatterns.some(p => titleLower.includes(p))) return false;\n      return validExtensions.some(ext => titleLower.endsWith(ext));\n    });\n    \n    if (bestImage) {\n      imageFilename = bestImage.title;\n    }\n  }\n}\n\nreturn {\n  ...prevData,\n  imageFilename,\n  hasFilename: imageFilename !== null\n};"
+      },
+      "id": "845fec04-e893-470b-b7db-28830f7dd44e",
+      "name": "Extract Filename",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1376,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-filename-check",
+              "leftValue": "={{ $json.hasFilename }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1152,
+        112
+      ],
+      "id": "f42cb71b-1d55-44ec-a2cb-9d4702d75823",
+      "name": "Has Filename?"
+    },
+    {
+      "parameters": {
+        "url": "=https://en.wikipedia.org/w/api.php?action=query&titles={{encodeURIComponent($json.imageFilename)}}&prop=imageinfo&iiprop=url&format=json&formatversion=2",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "DeckDash/1.0 (Educational App)"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "25f1f3fd-7ba2-4193-a0c6-c83ff184b9b0",
+      "name": "Get Image URL",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        -944,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const imageInfoResponse = $input.item.json;\nconst filenameItems = $('Has Filename?').all();\nconst prevData = filenameItems[$itemIndex].json;\n\nlet imageUrl = null;\n\nif (imageInfoResponse && \n    imageInfoResponse.query && \n    imageInfoResponse.query.pages &&\n    Array.isArray(imageInfoResponse.query.pages) &&\n    imageInfoResponse.query.pages.length > 0) {\n  \n  const page = imageInfoResponse.query.pages[0];\n  \n  if (page && page.imageinfo && page.imageinfo.length > 0) {\n    imageUrl = page.imageinfo[0].url;\n  }\n}\n\nreturn {\n  topic_id: prevData.topic_id,\n  topic_name: prevData.topic_name,\n  card_id: prevData.card_id,\n  correct_answer: prevData.correct_answer,\n  imageUrl: imageUrl,\n  source: 'wikipedia-fallback'\n};"
+      },
+      "id": "ac4289dd-f574-4028-be07-ee4dd031241e",
+      "name": "Parse Image URL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -720,
+        16
+      ]
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -496,
+        272
+      ],
+      "id": "887b358b-6cff-46c3-bef7-1d210078529d",
+      "name": "Merge All Results"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1d3CWJlF84eWfrAZD8zIlUPZRg0wehMxTmuOCzeKqcVg",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1d3CWJlF84eWfrAZD8zIlUPZRg0wehMxTmuOCzeKqcVg/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "topic_id": "={{ $json.topic_id }}",
+            "topic_name": "={{ $json.topic_name }}",
+            "card_id": "={{ $json.card_id }}",
+            "image_url": "={{ $json.imageUrl }}",
+            "correct_answer": "={{ $json.correct_answer }}"
+          },
+          "matchingColumns": [
+            "card_id"
+          ],
+          "schema": [
+            {
+              "id": "topic_id",
+              "displayName": "topic_id",
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "topic_name",
+              "displayName": "topic_name",
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "card_id",
+              "displayName": "card_id",
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "image_url",
+              "displayName": "image_url",
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "correct_answer",
+              "displayName": "correct_answer",
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1236029d-7d22-4c24-a78a-0cb242020430",
+      "name": "Append to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        -272,
+        272
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "yz8AI8XP3uNmt2bA",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Pass through items that already have an image (no fallback needed)\nconst data = $input.item.json;\nreturn {\n  topic_id: data.topic_id,\n  topic_name: data.topic_name,\n  card_id: data.card_id,\n  correct_answer: data.correct_answer,\n  imageUrl: data.imageUrl,\n  source: 'wikipedia-direct'\n};"
+      },
+      "id": "0dd82c88-a68c-43cb-9dd4-cef86b170456",
+      "name": "Pass Through (Has Image)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1600,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Pass through items with no image found\nconst data = $input.item.json;\nreturn {\n  topic_id: data.topic_id,\n  topic_name: data.topic_name,\n  card_id: data.card_id,\n  correct_answer: data.correct_answer,\n  imageUrl: null,\n  source: 'wikipedia-no-image'\n};"
+      },
+      "id": "c5132df1-a083-4d62-8d30-4c46c50c6abb",
+      "name": "Pass Through (No Image)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -944,
+        224
+      ]
+    }
+  ],
+  "pinData": {
+    "Webhook Trigger": [
+      {
+        "json": {
+          "headers": {
+            "host": "api.vibeuncle.com",
+            "user-agent": "node",
+            "content-length": "98",
+            "accept": "*/*",
+            "accept-encoding": "gzip, br",
+            "accept-language": "*",
+            "cdn-loop": "cloudflare; loops=1",
+            "cf-connecting-ip": "2401:7400:c80a:c6f9:4573:7d3d:3be3:c7bc",
+            "cf-ipcountry": "SG",
+            "cf-ray": "9b6157c0bdf318f8-SIN",
+            "cf-visitor": "{\"scheme\":\"https\"}",
+            "cf-warp-tag-id": "14c59a7b-f0c1-43ba-8ed3-ddc9a5bea114",
+            "connection": "keep-alive",
+            "content-type": "application/json",
+            "sec-fetch-mode": "cors",
+            "x-forwarded-for": "2401:7400:c80a:c6f9:4573:7d3d:3be3:c7bc",
+            "x-forwarded-proto": "https"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "topic_id": "characters_of_jujutsu_kaisen",
+            "topic_name": "Characters of Jujutsu Kaisen",
+            "count": 15
+          },
+          "webhookUrl": "https://api.vibeuncle.com/webhook/generate-deck",
+          "executionMode": "production"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Build Claude Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Claude Prompt": {
+      "main": [
+        [
+          {
+            "node": "Claude API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude API": {
+      "main": [
+        [
+          {
+            "node": "Parse Claude Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Claude Response": {
+      "main": [
+        [
+          {
+            "node": "Is Anime?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Anime?": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wikipedia PageImages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Merge All Results",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait 1 Second",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 1 Second": {
+      "main": [
+        [
+          {
+            "node": "Jikan API Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Jikan API Search": {
+      "main": [
+        [
+          {
+            "node": "Extract Jikan Image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Jikan Image": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wikipedia PageImages": {
+      "main": [
+        [
+          {
+            "node": "Extract Wiki Image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Wiki Image": {
+      "main": [
+        [
+          {
+            "node": "Need Fallback?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Need Fallback?": {
+      "main": [
+        [
+          {
+            "node": "Get Images List",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pass Through (Has Image)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Images List": {
+      "main": [
+        [
+          {
+            "node": "Extract Filename",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Filename": {
+      "main": [
+        [
+          {
+            "node": "Has Filename?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Filename?": {
+      "main": [
+        [
+          {
+            "node": "Get Image URL",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pass Through (No Image)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Image URL": {
+      "main": [
+        [
+          {
+            "node": "Parse Image URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Image URL": {
+      "main": [
+        [
+          {
+            "node": "Merge All Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pass Through (Has Image)": {
+      "main": [
+        [
+          {
+            "node": "Merge All Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pass Through (No Image)": {
+      "main": [
+        [
+          {
+            "node": "Merge All Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge All Results": {
+      "main": [
+        [
+          {
+            "node": "Append to Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "3fc7d5c5-a046-42c5-b814-2f5baa455d36",
+  "meta": {
+    "instanceId": "f93c53e21022cc111b26e00377f34d5a41add5f9cc66d94d094250f2f1bb8b9b"
+  },
+  "id": "6oA9vXM7IXLZIv1D",
+  "tags": []
+}

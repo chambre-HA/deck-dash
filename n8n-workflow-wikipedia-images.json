@@ -1,0 +1,206 @@
+{
+  "name": "Deck Dash - Wikipedia Image Fetcher",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "generate-deck",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const { topic_id, topic_name, count } = $input.first().json;\n\nconst prompt = `Generate ${count || 30} quiz cards for the topic: \"${topic_name}\".\n\nFor each item, provide:\n1. correct_answer: The exact name (e.g., \"Monkey D. Luffy\")\n2. wikipedia_slug: URL-friendly version for Wikipedia API\n   - Replace spaces with underscores\n   - Add disambiguation if needed in parentheses\n   - Examples: \"Monkey_D._Luffy\", \"Sanji_(One_Piece)\", \"Nami_(One_Piece)\"\n\nReturn ONLY valid JSON:\n{\n  \"cards\": [\n    {\n      \"correct_answer\": \"Monkey D. Luffy\",\n      \"wikipedia_slug\": \"Monkey_D._Luffy\"\n    },\n    {\n      \"correct_answer\": \"Sanji\",\n      \"wikipedia_slug\": \"Sanji_(One_Piece)\"\n    }\n  ]\n}`;\n\nreturn {\n  topic_id,\n  topic_name,\n  prompt\n};"
+      },
+      "id": "build-prompt",
+      "name": "Build Claude Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{$env.ANTHROPIC_API_KEY}}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "claude-3-5-sonnet-20241022"
+            },
+            {
+              "name": "max_tokens",
+              "value": 4096
+            },
+            {
+              "name": "messages",
+              "value": "={{[{role: 'user', content: $json.prompt}]}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "claude-api",
+      "name": "Claude API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const claudeResponse = $input.first().json.content[0].text;\nconst { topic_id, topic_name } = $node['Build Claude Prompt'].json;\n\n// Extract JSON from Claude response\nconst jsonMatch = claudeResponse.match(/\\{[\\s\\S]*\\}/);\nif (!jsonMatch) {\n  throw new Error('No JSON found in Claude response');\n}\n\nconst parsed = JSON.parse(jsonMatch[0]);\n\n// Output each card as separate item for parallel processing\nreturn parsed.cards.map((card, index) => ({\n  json: {\n    topic_id,\n    topic_name,\n    card_id: `${topic_id}_${String(index + 1).padStart(3, '0')}`,\n    correct_answer: card.correct_answer,\n    wikipedia_slug: card.wikipedia_slug\n  }\n}));"
+      },
+      "id": "parse-response",
+      "name": "Parse Claude Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://en.wikipedia.org/w/api.php?action=query&titles={{encodeURIComponent($json.wikipedia_slug)}}&prop=images&format=json&formatversion=2",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "DeckDash/1.0 (Educational App)"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-wiki-images",
+      "name": "Get Wikipedia Images",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const wikiResponse = $input.first().json;\nconst cardData = $node['Parse Claude Response'].item($item.index).json;\n\nlet imageFilename = null;\n\n// Get images from Wikipedia page\nif (wikiResponse.query && wikiResponse.query.pages && wikiResponse.query.pages.length > 0) {\n  const page = wikiResponse.query.pages[0];\n  \n  if (page.images && page.images.length > 0) {\n    // Find the most relevant image (usually matches character name)\n    const characterName = cardData.correct_answer.replace(/\\s+/g, '_');\n    \n    // Try to find image matching character name\n    let matchingImage = page.images.find(img => {\n      const title = img.title.replace('File:', '');\n      return title.includes(characterName) || \n             title.includes(cardData.correct_answer.split(' ')[0]) ||\n             title.toLowerCase().includes('face') ||\n             title.toLowerCase().includes(characterName.toLowerCase());\n    });\n    \n    // Fallback to first non-icon image\n    if (!matchingImage) {\n      matchingImage = page.images.find(img => {\n        const title = img.title.toLowerCase();\n        return !title.includes('icon') && \n               !title.includes('symbol') && \n               !title.includes('flag') &&\n               (title.endsWith('.jpg') || title.endsWith('.png') || title.endsWith('.jpeg'));\n      });\n    }\n    \n    if (matchingImage) {\n      imageFilename = matchingImage.title.replace('File:', '').replace(/ /g, '_');\n    }\n  }\n}\n\nif (!imageFilename) {\n  // Fallback: use character name as filename\n  imageFilename = cardData.correct_answer.replace(/\\s+/g, '_') + '.png';\n}\n\nreturn {\n  json: {\n    ...cardData,\n    image_filename: imageFilename\n  }\n};"
+      },
+      "id": "extract-filename",
+      "name": "Extract Image Filename",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "method": "HEAD",
+        "url": "=https://en.wikipedia.org/wiki/Special:Redirect/file/{{$json.image_filename}}",
+        "options": {
+          "redirect": {
+            "redirect": {
+              "followRedirects": true,
+              "maxRedirects": 5
+            }
+          }
+        }
+      },
+      "id": "get-direct-url",
+      "name": "Get Direct Image URL",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1450, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first();\nconst cardData = $node['Extract Image Filename'].item($item.index).json;\n\n// Get the final URL after redirects\nlet imageUrl = response.headers.location || '';\n\n// If no location header, build URL from filename\nif (!imageUrl) {\n  const filename = cardData.image_filename;\n  // Try common Wikimedia paths\n  const firstChar = filename.charAt(0).toLowerCase();\n  const secondChar = filename.charAt(1).toLowerCase();\n  imageUrl = `https://upload.wikimedia.org/wikipedia/en/${firstChar}/${firstChar}${secondChar}/${filename}`;\n}\n\nreturn {\n  json: {\n    topic_id: cardData.topic_id,\n    topic_name: cardData.topic_name,\n    card_id: cardData.card_id,\n    image_url: imageUrl,\n    correct_answer: cardData.correct_answer\n  }\n};"
+      },
+      "id": "format-output",
+      "name": "Format Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1650, 300]
+    },
+    {
+      "parameters": {
+        "resource": "append",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "={{$env.GOOGLE_SHEETS_ID}}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "deck_dash_cards",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "topic_id": "={{$json.topic_id}}",
+            "topic_name": "={{$json.topic_name}}",
+            "card_id": "={{$json.card_id}}",
+            "image_url": "={{$json.image_url}}",
+            "correct_answer": "={{$json.correct_answer}}"
+          }
+        },
+        "options": {}
+      },
+      "id": "append-to-sheets",
+      "name": "Append to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [1850, 300]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [[{"node": "Build Claude Prompt", "type": "main", "index": 0}]]
+    },
+    "Build Claude Prompt": {
+      "main": [[{"node": "Claude API", "type": "main", "index": 0}]]
+    },
+    "Claude API": {
+      "main": [[{"node": "Parse Claude Response", "type": "main", "index": 0}]]
+    },
+    "Parse Claude Response": {
+      "main": [[{"node": "Get Wikipedia Images", "type": "main", "index": 0}]]
+    },
+    "Get Wikipedia Images": {
+      "main": [[{"node": "Extract Image Filename", "type": "main", "index": 0}]]
+    },
+    "Extract Image Filename": {
+      "main": [[{"node": "Get Direct Image URL", "type": "main", "index": 0}]]
+    },
+    "Get Direct Image URL": {
+      "main": [[{"node": "Format Output", "type": "main", "index": 0}]]
+    },
+    "Format Output": {
+      "main": [[{"node": "Append to Google Sheets", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {},
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2025-12-28T00:00:00.000Z",
+  "versionId": "1"
+}
